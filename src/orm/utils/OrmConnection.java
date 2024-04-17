@@ -18,6 +18,7 @@ public class OrmConnection {
         try {
             connection = DriverManager.getConnection(URL,USER,PASSWORD);
         }catch (SQLException e){
+            e.printStackTrace();
             System.err.println("ERROR CONECNTANDO LA BASE DE DATOS");
         }
         return connection;

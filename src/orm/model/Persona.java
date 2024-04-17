@@ -22,11 +22,26 @@ public class Persona {
     private LocalDateTime birthDate;
 
     public Persona(String name, String lastName, Integer age, LocalDateTime birthDate) {
-        this.id=0L;
+        this.id = 0L;
         this.name = name;
         this.lastName = lastName;
         this.age = age;
         this.birthDate = birthDate;
     }
 
+    public Persona(final long id, final String name, final String lastName, final Integer age, final LocalDateTime birthDate) {
+        this(name, lastName, age, birthDate);
+        this.id = id;
+    }
+
+    @Override
+    public String toString() {
+        return "Persona{" +
+                "id=" + id +
+                ", name='" + name + '\'' +
+                ", lastName='" + lastName + '\'' +
+                ", age=" + age +
+                ", birthDate=" + birthDate +
+                '}';
+    }
 }

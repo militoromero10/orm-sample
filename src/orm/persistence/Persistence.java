@@ -5,13 +5,19 @@ import orm.annotations.Table;
 import orm.model.Persona;
 import orm.utils.OrmConnection;
 
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 
 public class Persistence {
@@ -54,8 +60,19 @@ public class Persistence {
         }
     }
 
+    public <C> List<C> executeQuery(Class<C> clazz) throws IllegalAccessException {
+        Class<Persona> personaClass = Persona.class;
 
-    public void createQuery(Persona persona) throws IllegalAccessException {
+        var annotation = personaClass.getAnnotation(Table.class);
+        var query = "";
+        if (annotation != null) {
+            query = String.format("SELECT * FROM %s", annotation.value());
+        }
+
+        return executeQuery(query, clazz);
+    }
+
+    public void createInsert(Persona persona) throws IllegalAccessException {
         Class<Persona> personaClass = Persona.class;
 
         var annotation = personaClass.getAnnotation(Table.class);
@@ -86,12 +103,54 @@ public class Persistence {
         execute(q2, map, Boolean.FALSE);
     }
 
+    private <C> List<C> executeQuery(final String query, final Class<C> clazz) {
+        Connection connection;
+        final List<C> result = new LinkedList<>();
+        try {
+            connection = OrmConnection.getConnection();
+            Statement statement = connection.createStatement();
+            ResultSet rs = statement.executeQuery(query);
+
+            while (rs.next()) {
+
+                var fields = clazz.getDeclaredFields();
+
+
+                Object[] initargs = Arrays.stream(fields).map(field -> {
+                    try {
+                        return rs.getObject(field.getName());
+                    } catch (SQLException e) {
+                        throw new RuntimeException(e);
+                    }
+                }).toArray();
+
+                Constructor[] cons = null;
+                cons = clazz.getConstructors();
+                result.add((C) cons[1].newInstance(initargs));
+
+
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } catch (InvocationTargetException e) {
+            throw new RuntimeException(e);
+        } catch (InstantiationException e) {
+            throw new RuntimeException(e);
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+
+        return result;
+    }
+
     private void execute(String query, Map<String, String> map, boolean isDDL) {
         Connection connection;
         try {
             connection = OrmConnection.getConnection();
             if (isDDL) {
                 Statement statement = connection.createStatement();
+
                 statement.execute(query);
             } else {
                 PreparedStatement statement = connection.prepareStatement(query);
