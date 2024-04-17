@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
 public class Main {
 
 
+    private static Integer ID =0;
     @ContextPersistence
     private Persistence persistence;
 
@@ -51,9 +52,9 @@ public class Main {
                     var now = LocalDateTime.now();
                     System.out.printf("Fecha de registro: %s\n", now);
 
-                    var persona = new Persona(name, apellido, edad, now);
+                    var persona = new Persona(ID++,name, apellido, edad, now);
                     if (flag) {
-                        ctx.createTable(persona);
+//                        ctx.createTable(persona);
                         flag = false;
                     }
 

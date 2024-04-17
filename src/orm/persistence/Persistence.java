@@ -2,18 +2,14 @@ package orm.persistence;
 
 import orm.annotations.Column;
 import orm.annotations.Table;
-import orm.model.Persona;
 import orm.utils.OrmConnection;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
+import java.sql.*;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -22,21 +18,21 @@ import java.util.Map;
 
 public class Persistence {
 
-    public void createTable(Persona persona) throws IllegalAccessException {
+    public <C> void createTable(C c) throws IllegalAccessException {
         var map = new HashMap<String, Object>();
-        Class<Persona> personaClass = Persona.class;
-        var tableClass = personaClass.getAnnotation(Table.class);
+        Class<C> clazz = (Class<C>) c.getClass();
+        var tableClass = clazz.getAnnotation(Table.class);
         String tableName = null;
         if (tableClass != null) {
             tableName = tableClass.value();
         }
 
-        var fields = personaClass.getDeclaredFields();
+        var fields = clazz.getDeclaredFields();
         for (Field field : fields) {
             var varInstance = field.getAnnotation(Column.class);
             if (varInstance != null) {
                 field.setAccessible(true);
-                map.put(varInstance.value(), field.get(persona));
+                map.put(varInstance.value(), field.get(c));
             }
         }
         var sb = String.format("CREATE TABLE %s (%s);", tableName, "%s");
@@ -61,9 +57,8 @@ public class Persistence {
     }
 
     public <C> List<C> executeQuery(Class<C> clazz) throws IllegalAccessException {
-        Class<Persona> personaClass = Persona.class;
 
-        var annotation = personaClass.getAnnotation(Table.class);
+        var annotation = clazz.getAnnotation(Table.class);
         var query = "";
         if (annotation != null) {
             query = String.format("SELECT * FROM %s", annotation.value());
@@ -72,22 +67,22 @@ public class Persistence {
         return executeQuery(query, clazz);
     }
 
-    public void createInsert(Persona persona) throws IllegalAccessException {
-        Class<Persona> personaClass = Persona.class;
+    public <C> void createInsert(C c) throws IllegalAccessException {
+        Class<C> clazz = (Class<C>) c.getClass();
 
-        var annotation = personaClass.getAnnotation(Table.class);
+        var annotation = clazz.getAnnotation(Table.class);
         var query = "";
         if (annotation != null) {
             query = String.format("INSERT INTO %s (%s) VALUES (%s)", annotation.value(), "%s", "%s");
         }
 
-        var fields = personaClass.getDeclaredFields();
+        var fields = clazz.getDeclaredFields();
         var map = new HashMap<String, String>();
         for (Field field : fields) {
             field.setAccessible(true);
             var ant = field.getAnnotation(Column.class);
             if (ant != null && !ant.value().contains("id")) {
-                map.put(ant.value(), field.get(persona).toString());
+                map.put(ant.value(), field.get(c).toString());
             }
         }
 
@@ -114,11 +109,14 @@ public class Persistence {
             while (rs.next()) {
 
                 var fields = clazz.getDeclaredFields();
-
-
                 Object[] initargs = Arrays.stream(fields).map(field -> {
                     try {
-                        return rs.getObject(field.getName());
+                        var member = field.getAnnotation(Column.class);
+                        Object o = rs.getObject(member.value());
+                        if(o instanceof Date d){
+                            o = LocalDateTime.of(d.toLocalDate(), LocalTime.now());
+                        }
+                        return o;
                     } catch (SQLException e) {
                         throw new RuntimeException(e);
                     }
@@ -126,9 +124,15 @@ public class Persistence {
 
                 Constructor[] cons = null;
                 cons = clazz.getConstructors();
-                result.add((C) cons[1].newInstance(initargs));
 
+                Class<?>[] parameterTypes = cons[0].getParameterTypes();
 
+                Object[] args = new Object[parameterTypes.length];
+
+                for (int i = 0; i < args.length; i++) {
+                    args[i] = parameterTypes[i].cast(initargs[i]);
+                }
+                result.add((C) cons[0].newInstance(args));
             }
 
         } catch (SQLException e) {
